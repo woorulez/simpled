@@ -11,13 +11,8 @@ const head = "<html><body>\n"
 const input = "<div><form method=\"post\" enctype=\"multipart/form-data\"><input type=\"file\" id=\"upload\" name=\"upload\"><input type=\"submit\"></form></div>\n\n"
 const tail = "</body></html>"
 
-func genHtml(infos []os.FileInfo) string {
-	sort.SliceStable(infos, func(i, j int) bool {
-		if infos[i].IsDir() == infos[j].IsDir() {
-			return infos[i].Name() < infos[j].Name()
-		}
-		return infos[i].IsDir()
-	})
+func genHtml(infos []os.FileInfo, less func(i, j int) bool) string {
+	sort.SliceStable(infos, less)
 
 	var sb strings.Builder
 	sb.WriteString(head)

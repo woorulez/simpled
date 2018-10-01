@@ -58,7 +58,12 @@ func (h *handler) handleGet(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		html := genHtml(fileInfos)
+		html := genHtml(fileInfos, func(i, j int) bool {
+			if fileInfos[i].IsDir() == fileInfos[j].IsDir() {
+				return fileInfos[i].Name() < fileInfos[j].Name()
+			}
+			return fileInfos[i].IsDir()
+		})
 		w.Write([]byte(html))
 		return
 	}
