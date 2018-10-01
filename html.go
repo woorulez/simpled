@@ -13,7 +13,10 @@ const tail = "</body></html>"
 
 func genHtml(infos []os.FileInfo) string {
 	sort.SliceStable(infos, func(i, j int) bool {
-		return (infos[i].IsDir() && !infos[j].IsDir()) || (infos[i].Name() < infos[j].Name())
+		if infos[i].IsDir() == infos[j].IsDir() {
+			return infos[i].Name() < infos[j].Name()
+		}
+		return infos[j].IsDir()
 	})
 
 	var sb strings.Builder
