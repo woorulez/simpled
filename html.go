@@ -16,7 +16,7 @@ func genHtml(infos []os.FileInfo) string {
 		if infos[i].IsDir() == infos[j].IsDir() {
 			return infos[i].Name() < infos[j].Name()
 		}
-		return infos[j].IsDir()
+		return infos[i].IsDir()
 	})
 
 	var sb strings.Builder
