@@ -106,6 +106,7 @@ func (h *handler) handlePost(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("%v", err), http.StatusInternalServerError)
 		return
 	}
+	defer newFile.Close()
 
 	_, err = io.Copy(newFile, formFile)
 	if err != nil {
