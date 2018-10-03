@@ -2,18 +2,66 @@ package main
 
 import (
 	"fmt"
+	"html/template"
 	"io"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
+	"github.com/gobuffalo/packr"
 	"github.com/pkg/errors"
 )
 
 type handler struct {
 	rootPath string
+	indexTpl *template.Template
+}
+
+type DirInfo struct {
+	Path   string
+	FInfos []FInfo
+}
+
+type FInfo struct {
+	Name  string
+	MTime string
+	Size  string
+}
+
+func Handler(rootPath string) (http.Handler, error) {
+	s := strings.TrimSpace(rootPath)
+	if len(s) == 0 {
+		s = "."
+	}
+
+	r, err := filepath.EvalSymlinks(s)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to evaluate: %s", rootPath)
+	}
+
+	a, err := filepath.Abs(r)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to absolute: %s", rootPath)
+	}
+
+	fi, err := os.Stat(a)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to stat: %s", rootPath)
+	}
+	if fi.IsDir() == false {
+		return nil, errors.Wrapf(err, "not a directory: %s", rootPath)
+	}
+
+	box := packr.NewBox("box")
+	tpl, err := template.New("index").Parse(box.String("index.gohtml"))
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to parse template")
+	}
+
+	return &handler{a, tpl}, nil
 }
 
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -58,13 +106,15 @@ func (h *handler) handleGet(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		html := genHtml(fileInfos, func(i, j int) bool {
+		// directories first and sort by name
+		sort.Slice(fileInfos, func(i, j int) bool {
 			if fileInfos[i].IsDir() == fileInfos[j].IsDir() {
 				return fileInfos[i].Name() < fileInfos[j].Name()
 			}
 			return fileInfos[i].IsDir()
 		})
-		w.Write([]byte(html))
+
+		h.writeHtml(w, r.URL.Path, fileInfos)
 		return
 	}
 
@@ -118,29 +168,27 @@ func (h *handler) handlePost(w http.ResponseWriter, r *http.Request) {
 	h.handleGet(w, r)
 }
 
-func Handler(rootPath string) (http.Handler, error) {
-	s := strings.TrimSpace(rootPath)
-	if len(s) == 0 {
-		s = "."
+func (h *handler) writeHtml(w http.ResponseWriter, fPath string, fileInfos []os.FileInfo) {
+	fInfos := make([]FInfo, 0, len(fileInfos))
+	for _, i := range fileInfos {
+		var nameStr string
+		var mtimeStr string
+		var sizeStr string
+
+		m := i.Mode()
+		if m.IsRegular() {
+			nameStr = i.Name()
+			mtimeStr = i.ModTime().Format("2006-01-02 15:04")
+			sizeStr = fmt.Sprintf("%d", i.Size())
+		} else if m.IsDir() {
+			nameStr = i.Name() + "/"
+		} else {
+			continue
+		}
+		fInfos = append(fInfos, FInfo{nameStr, mtimeStr, sizeStr})
 	}
 
-	r, err := filepath.EvalSymlinks(s)
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed to evaluate: %s", rootPath)
+	if err := h.indexTpl.Execute(w, DirInfo{fPath, fInfos}); err != nil {
+		log.Printf("error: %v", err)
 	}
-
-	a, err := filepath.Abs(r)
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed to absolute: %s", rootPath)
-	}
-
-	fi, err := os.Stat(a)
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed to stat: %s", rootPath)
-	}
-	if fi.IsDir() == false {
-		return nil, errors.Wrapf(err, "not a directory: %s", rootPath)
-	}
-
-	return &handler{a}, nil
 }

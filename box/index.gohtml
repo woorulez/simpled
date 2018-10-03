@@ -1,0 +1,57 @@
+<html>
+
+<head>
+    <title>simpled</title>
+    <style>
+        table {
+            border-collapse: collapse;
+        }
+        th, td {
+            border-bottom: 1px solid #ddd;
+            padding-top: 5px;
+            min-width: 100px;
+        }
+        .size {
+            text-align: right;
+            padding-left: 15px;
+        }
+        .time {
+            text-align: center;
+            padding-left: 15px;
+            padding-right: 15px;
+        }
+        tr:hover {background-color: #f5f5f5;}
+
+        a {text-decoration: none;}
+    </style>
+</head>
+
+<body>
+<h1>{{.Path}}</h1>
+
+<form method="post" enctype="multipart/form-data">
+    <input type="file" id="upload" name="upload">
+    <input type="submit">
+</form>
+
+<table>
+    <thead>
+    <tr>
+        <th>name</th>
+        <th class="size">size</th>
+        <th class="time">m-time</th>
+    </tr>
+    </thead>
+    <tbody>
+    {{range .FInfos}}
+    <tr>
+        <td><a href="{{.Name}}">{{.Name}}</a></td>
+        <td class="size">{{.Size}}</td>
+        <td class="time">{{.MTime}}</td>
+    </tr>
+    {{end}}
+    </tbody>
+</table>
+
+</body>
+</html>
