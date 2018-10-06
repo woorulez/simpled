@@ -5,6 +5,8 @@ import (
 	"html/template"
 	"io"
 	"log"
+	"mime"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -136,15 +138,40 @@ func (h *handler) handlePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	formFile, formFileHeader, err := r.FormFile("upload")
-	if err != nil {
-		log.Printf("%v", err)
+	mediaType, params, err := mime.ParseMediaType(r.Header.Get("content-type"))
+	if err != nil || !strings.HasPrefix(mediaType, "multipart/") {
+		log.Printf("content-type parse error: %s, %v", r.Header.Get("content-type"), err)
 		http.Error(w, fmt.Sprintf("%v", err), http.StatusInternalServerError)
 		return
 	}
-	defer formFile.Close()
 
-	newFilePath := filepath.Join(fPath, formFileHeader.Filename)
+	var part *multipart.Part
+	mr := multipart.NewReader(r.Body, params["boundary"])
+	for {
+		p, err := mr.NextPart()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			log.Printf("multipart parse err: %v", err)
+			http.Error(w, fmt.Sprintf("%v", err), http.StatusInternalServerError)
+			return
+		}
+
+		if p.FormName() == "upload" {
+			part = p
+			break
+		}
+	}
+
+	if part == nil || part.FileName() == "" {
+		log.Printf("part nil")
+		http.Error(w, "empty form", http.StatusBadRequest)
+		return
+	}
+	defer part.Close()
+
+	newFilePath := filepath.Join(fPath, part.FileName())
 	if _, err = os.Stat(newFilePath); err == nil {
 		http.Error(w, fmt.Sprintf("already exists: %s", newFilePath), http.StatusForbidden)
 		return
@@ -158,7 +185,7 @@ func (h *handler) handlePost(w http.ResponseWriter, r *http.Request) {
 	}
 	defer newFile.Close()
 
-	_, err = io.Copy(newFile, formFile)
+	_, err = io.Copy(newFile, part)
 	if err != nil {
 		log.Printf("%v", err)
 		http.Error(w, fmt.Sprintf("%v", err), http.StatusInternalServerError)
